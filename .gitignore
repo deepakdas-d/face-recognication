@@ -1,0 +1,82 @@
+# Python / FastAPI - Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyc
+*.pyo
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+.env/
+
+# Environment variables & secrets (critical!)
+.env
+.env.local
+.env.development
+.env.production
+.env.example          # ← only add !.env.example if you want to commit a template
+
+# Local/development database (SQLite etc.)
+*.db
+*.sqlite3
+face.db               # ← your specific database file
+
+# Build & distribution directories
+build/
+dist/
+*.egg
+*.egg-info/
+eggs/
+parts/
+sdist/
+var/
+wheels/
+*.manifest
+*.spec
+
+# Testing & coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+*.pytest_cache/
+.pytest_cache/
+tox/
+nox/
+.hypothesis/
+
+# IDE / Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs & temporary files
+*.log
+*.logs
+tmp/
+temp/
+*.bak
+*.backup
+
+# Dependency management (if using poetry/pipenv etc.)
+poetry.lock           # ← usually commit this, remove if you don't want to
+Pipfile.lock
+
+# Optional: Docker / deployment artifacts
+*.dockerignore
+Dockerfile.*
+docker-compose.override.yml
+
+# macOS / Windows junk
+.DS_Store
+Thumbs.db
+ehthumbs.db

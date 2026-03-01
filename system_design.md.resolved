@@ -1,0 +1,89 @@
+# System Design: Face Recognition Attendance Backend
+
+This document overviews the core architecture, data models, and operational flows within the current FastAPI-based Face Recognition Attendance backend system.
+
+## 1. High-Level Architecture
+- **Web Framework**: **FastAPI** provides a modern, high-performance web API layer with automatic OpenAPI documentation.
+- **Relational Database**: **SQLAlchemy ORM** is used to abstract database interactions. The system natively accepts a `DATABASE_URL` (defaulting to SQLite locally, but adaptable to PostgreSQL as indicated by the requirements dependencies).
+- **Core AI Engine**: **DeepFace** via `deepface[opencv, tensorflow/keras]` operates as the primary library for face representation/embeddings extraction. 
+  - **Model**: Default `ArcFace` (configurable via env variable `MODEL_NAME`).
+  - **Detector**: Default `opencv` (configurable via env variable `DETECTOR_BACKEND`).
+  - **Storage Format**: Numerical face embeddings are serialized into JSON strings and stored in the database.
+- **Service Layering**: The application logic separates controllers ([main.py](file:///d:/python/face%20recognication/app/main.py)) from database models ([models.py](file:///d:/python/face%20recognication/app/models.py)), database setup ([database.py](file:///d:/python/face%20recognication/app/database.py)), and face embedding/matching logic ([face_service.py](file:///d:/python/face%20recognication/app/face_service.py)), keeping the repository organized and scalable.
+
+## 2. Database Schema (Entities)
+The application tracks three primary entities via SQLAlchemy Models:
+
+1. **[users](file:///d:/python/face%20recognication/app/main.py#250-271) Table**
+   - [id](file:///d:/python/face%20recognication/app/face_service.py#67-79): Primary key.
+   - `name`: User's full name (indexed and unique).
+   - `created_at`: Registration timestamp.
+2. **`face_embeddings` Table**
+   - [id](file:///d:/python/face%20recognication/app/face_service.py#67-79): Primary key.
+   - `user_id`: Foreign key linked to [users](file:///d:/python/face%20recognication/app/main.py#250-271). (Cascades on delete).
+   - [embedding](file:///d:/python/face%20recognication/app/face_service.py#15-46): JSON-serialized array representing the detected 128D/512D face features.
+   - `created_at`: Timestamp.
+3. **[attendance](file:///d:/python/face%20recognication/app/attendance_service.py#8-35) Table**
+   - [id](file:///d:/python/face%20recognication/app/face_service.py#67-79): Primary key.
+   - `user_id`: Foreign key linked to [users](file:///d:/python/face%20recognication/app/main.py#250-271).
+   - [date](file:///d:/python/face%20recognication/app/face_service.py#67-79): Attendance date (unique per user per date via logical grouping).
+   - `timestamp`: Exact time of the swipe/recognition.
+
+## 3. Core System Workflows
+
+### A. User Registration (`POST /register/`)
+```mermaid
+sequenceDiagram
+    participant Frontend
+    participant FastAPI
+    participant DeepFace (face_service)
+    participant Database
+
+    Frontend->>FastAPI: POST /register/ (Name, Image)
+    FastAPI->>Database: Check if Name exists
+    FastAPI->>FastAPI: Save Image to Temp Directory
+    FastAPI->>DeepFace: extract_embedding(temp_image_path)
+    DeepFace-->>FastAPI: Return 1D Embedding Array
+    FastAPI->>Database: Insert User
+    FastAPI->>Database: Insert FaceEmbedding (JSON stringified)
+    FastAPI->>FastAPI: Delete Temp Image
+    FastAPI-->>Frontend: 201 Created (User ID, Name)
+```
+
+### B. Face Recognition & Attendance Marking (`POST /recognize/`)
+```mermaid
+sequenceDiagram
+    participant Frontend
+    participant FastAPI
+    participant DeepFace (face_service)
+    participant Database
+
+    Frontend->>FastAPI: POST /recognize/ (Image)
+    FastAPI->>FastAPI: Save Image to Temp Directory
+    FastAPI->>DeepFace: extract_embedding(temp_image_path)
+    DeepFace-->>FastAPI: Return Captured Embedding
+    FastAPI->>Database: Fetch ALL stored embeddings
+    
+    loop Over Stored Embeddings
+        FastAPI->>FastAPI: Calculate Cosine Similarity
+    end
+    
+    alt Best Score >= THRESHOLD (Default: 0.6)
+        FastAPI->>Database: mark_attendance(best_match_user_id)
+        Database-->>FastAPI: Returns Status ("Marked" or "Already Marked")
+        FastAPI-->>Frontend: Success (Name, Confidence, Status)
+    else Score < THRESHOLD
+        FastAPI-->>Frontend: 200 OK (Status: "No Match")
+    end
+    FastAPI->>FastAPI: Delete Temp Image
+```
+
+## 4. Key Configuration ([config.py](file:///d:/python/face%20recognication/app/config.py) & `.env`)
+The system behavior is heavily customizable via environment variables:
+- `MAX_FILE_SIZE`: Restricts upload payload size (Default `5MB`) to prevent server overload.
+- `THRESHOLD`: The minimum cosine similarity score required for a valid face match (Default `0.6`).
+- `UPLOAD_DIR`: The local folder where images are temporarily saved chunk-by-chunk for processing.
+
+## 5. Potential Constraints & Scalability Implications
+- **Algorithmic Complexity**: During `/recognize/`, the system currently fetches **all** embeddings into memory and computes cosine similarity iteratively via a python `for` loop. While efficient for hundreds of users, an enterprise-level scale (~10k+ users) would require vector similarity search utilities like **pgvector**, **Milvus**, or **Faiss**.
+- **Cold Starts**: Using TensorFlow/Keras through FastAPI might lead to heavy startup memory footprints. Running via Uvicorn in production requires careful worker scaling.
