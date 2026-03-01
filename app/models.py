@@ -1,38 +1,46 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Date, Text, Index
-from datetime import datetime, date
-from app.database import Base
+# app/models.py
+
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, JSON
+from sqlalchemy.orm import relationship
+from .database import Base
+from datetime import datetime
+
 
 class User(Base):
     __tablename__ = "users"
-    
-    __table_args__ = (
-        Index('idx_user_name', 'name'),
-    )
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    name = Column(String, unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-class FaceEmbedding(Base):
-    __tablename__ = "face_embeddings"
-    
-    __table_args__ = (
-        Index('idx_face_user', 'user_id'),
+    embeddings = relationship(
+        "Embedding",
+        back_populates="user",
+        cascade="all, delete-orphan"
     )
 
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    embedding = Column(Text, nullable=False)  # JSON string of embedding
-    created_at = Column(DateTime, default=datetime.utcnow)
+    attendances = relationship(
+        "Attendance",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+
+class Embedding(Base):
+    __tablename__ = "embeddings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    embedding = Column(JSON, nullable=False)
+
+    user = relationship("User", back_populates="embeddings")
+
 
 class Attendance(Base):
-    __tablename__ = "attendance"
-    
-    __table_args__ = (
-        Index('idx_attendance_user_date', 'user_id', 'date'),
-    )
+    __tablename__ = "attendances"
 
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    date = Column(Date, default=date.today, nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="attendances")
