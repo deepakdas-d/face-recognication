@@ -43,28 +43,31 @@ class LivenessValidator:
         recent_pose = self.average_pose(recent_poses)
 
         initial_pose = self.pose_history[0]["pose"]
+        print(f"[DEBUG POSE] Initial: yaw={initial_pose['yaw']:.4f} pitch={initial_pose['pitch']:.4f}")
+        print(f"[DEBUG POSE] Recent avg: yaw={recent_pose['yaw']:.4f} pitch={recent_pose['pitch']:.4f}")
 
         delta_yaw   = recent_pose["yaw"]   - initial_pose["yaw"]
         delta_pitch = recent_pose["pitch"] - initial_pose["pitch"]
         delta_roll  = recent_pose["roll"]  - initial_pose["roll"]
+        print(f"[DEBUG DELTA] Δyaw={delta_yaw:+.4f}  Δpitch={delta_pitch:+.4f}  Δroll={delta_roll:+.4f}")
 
         print(f"[LIVENESS] Δyaw: {delta_yaw:+.4f}  Δpitch: {delta_pitch:+.4f}  Δroll: {delta_roll:+.4f}")
 
         validated = False
 
         if self.challenge == "turn_left":
-            validated = delta_yaw < -0.08   # ≈ 4.6° — lowered for webcam testing
+            validated = delta_yaw < -0.8       # user needs to turn clearly left → more negative yaw
+
         elif self.challenge == "turn_right":
-            validated = delta_yaw > 0.08
+            validated = delta_yaw > +0.8
         elif self.challenge == "look_up":
-            validated = delta_pitch < -0.10   # note: pitch sign might be inverted — test!
+            validated = delta_pitch < -0.05  # Negative delta = up (nose higher)
         elif self.challenge == "look_down":
-            validated = delta_pitch > 0.10
+            validated = delta_pitch > 0.05   # Positive delta = down (nose lower)
         elif self.challenge == "smile":
             validated = self._detect_smile(recent_poses)
         elif self.challenge == "blink":
             validated = self._detect_blink(recent_poses)
-
         if validated:
             print(f"[LIVENESS] VALIDATED! Challenge: {self.challenge}")
             self.validated = True

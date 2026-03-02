@@ -1,4 +1,3 @@
-# app/face/pose_service.py
 import numpy as np
 
 def estimate_pose(coords):
@@ -8,28 +7,39 @@ def estimate_pose(coords):
     nose = coords["nose"]
     left_eye = coords["left_eye"]
     right_eye = coords["right_eye"]
-    eye_center = (left_eye + right_eye) / 2
-    nose_vec = nose - eye_center
 
-    yaw = np.arctan2(nose_vec[0], nose_vec[2])
-    pitch = np.arctan2(nose_vec[1], nose_vec[2])
-    roll = np.arctan2(right_eye[1] - left_eye[1], right_eye[0] - left_eye[0])
+    # Eye center
+    eye_center = (left_eye + right_eye) / 2.0
 
-    # Mouth metrics
-    mouth_width = np.linalg.norm(coords["mouth_right"] - coords["mouth_left"])
-    mouth_height = np.linalg.norm(coords["mouth_bottom"] - coords["mouth_top"])
-
-    # Eye metrics
-    left_eye_height = np.linalg.norm(coords["left_eye_top"] - coords["left_eye_bottom"])
-    right_eye_height = np.linalg.norm(coords["right_eye_top"] - coords["right_eye_bottom"])
-
-    # Normalize by interocular distance
+    # Interocular distance (scale normalization)
     interocular_dist = np.linalg.norm(right_eye[:2] - left_eye[:2])
-    if interocular_dist > 0:
-        mouth_width /= interocular_dist
-        mouth_height /= interocular_dist
-        left_eye_height /= interocular_dist
-        right_eye_height /= interocular_dist
+    if interocular_dist <= 1e-6:
+        return None
+
+    # -------- YAW (2D proxy) --------
+    # Horizontal nose offset normalized by eye distance
+    yaw_proxy = (nose[0] - eye_center[0]) / interocular_dist
+
+    # Scale to degrees-like range
+    yaw = yaw_proxy * 60.0   # tune 40–80 depending on sensitivity
+
+    # -------- ROLL --------
+    roll = np.degrees(
+        np.arctan2(
+            right_eye[1] - left_eye[1],
+            right_eye[0] - left_eye[0]
+        )
+    )
+
+    # -------- PITCH (2D proxy) --------
+    pitch_proxy = (nose[1] - eye_center[1]) / interocular_dist
+    pitch = pitch_proxy * 60.0
+
+    # -------- Extra Metrics --------
+    mouth_width = np.linalg.norm(coords["mouth_right"] - coords["mouth_left"]) / interocular_dist
+    mouth_height = np.linalg.norm(coords["mouth_bottom"] - coords["mouth_top"]) / interocular_dist
+    left_eye_height = np.linalg.norm(coords["left_eye_top"] - coords["left_eye_bottom"]) / interocular_dist
+    right_eye_height = np.linalg.norm(coords["right_eye_top"] - coords["right_eye_bottom"]) / interocular_dist
 
     return {
         "yaw": yaw,

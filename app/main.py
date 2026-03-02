@@ -1,7 +1,21 @@
 # app/main.py
+# ────────────────────────────────────────────────
+# Force-load .env and print config **before anything else**
+from dotenv import load_dotenv
+import os
+
+load_dotenv(override=True)  # reload even if already loaded
+
+print("\n" + "="*60)
+print("[CONFIG DEBUG - EARLY] From os.getenv:")
+print(f"  MODEL_NAME      = {os.getenv('MODEL_NAME')}")
+print(f"  DETECTOR_BACKEND = {os.getenv('DETECTOR_BACKEND')}")
+print(f"  THRESHOLD       = {os.getenv('THRESHOLD')}")
+print("="*60 + "\n")
+# ────────────────────────────────────────────────
 import json
 
-from fastapi import FastAPI, WebSocket, Depends, HTTPException, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, Depends, HTTPException, WebSocketDisconnect,status
 from sqlalchemy.orm import Session, joinedload
 import os
 from datetime import datetime, date, time
@@ -13,6 +27,27 @@ from pydantic import BaseModel, Field
 from .models import User, Attendance  
 from starlette.websockets import WebSocketState
 from fastapi.middleware.cors import CORSMiddleware
+import logging
+from deepface import DeepFace
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+def preload_deepface_models():
+    logger.info("Pre-loading DeepFace models (ArcFace + retinaface)...")
+    dummy_frame = np.zeros((240, 320, 3), dtype=np.uint8)  # black image
+    try:
+        _ = DeepFace.represent(
+            dummy_frame,
+            model_name="ArcFace",
+            detector_backend="retinaface",
+            enforce_detection=False
+        )
+        logger.info("Pre-load successful: ArcFace + retinaface ready")
+    except Exception as e:
+        logger.error(f"Pre-load failed: {str(e)}")
+
+preload_deepface_models()
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -235,5 +270,26 @@ def get_today_attendance():
             )
             for a in records
         ]
+    finally:
+        db.close()
+@app.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(user_id: int):
+    db: Session = SessionLocal()
+    try:
+        user = db.query(User).options(joinedload(User.embeddings)).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Optional: remove embeddings first if they are related records
+        for emb in user.embeddings:
+            db.delete(emb)
+
+        # Optional: remove attendance records
+        db.query(Attendance).filter(Attendance.user_id == user_id).delete(synchronize_session=False)
+
+        db.delete(user)
+        db.commit()
+        return  # 204 No Content
+
     finally:
         db.close()

@@ -4,21 +4,18 @@ uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 python-dotenv==1.0.0
 
-# Face recognition & processing
-deepface==0.0.79
-opencv-python-headless==4.8.1.78
-numpy==1.26.4          # updated (1.23 had many deprecation issues)
-mediapipe==0.10.11
-tensorflow==2.15.0      # more recent stable
-keras==2.15.0
-protobuf==3.20.3
+# Face recognition & processing – stable combo
+deepface==0.0.93          # Newer version fixes many import & detector issues
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+mediapipe==0.10.11        # fallback if needed
+tensorflow==2.15.0        # Keep this – very stable with DeepFace
+tf-keras==2.15.0          # Explicitly add this to resolve 'tensorflow.keras' import
+protobuf==3.20.3          # Avoid protobuf conflicts
 
 # Database
 sqlalchemy==2.0.35
-alembic==1.13.3         # optional – for migrations in production
-
-# For production PostgreSQL (uncomment when needed)
-# psycopg2-binary==2.9.9
+alembic==1.13.3
 
 # Utilities
 pandas==2.2.3
